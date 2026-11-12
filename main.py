@@ -1,7 +1,6 @@
 import os
 import json
 import smtplib
-import requests
 import traceback
 import pandas as pd
 from email.message import EmailMessage
@@ -16,8 +15,6 @@ API_KEY = clean_secret(os.environ.get('ENTSOE_KEY'))
 EMAIL_SENDER = clean_secret(os.environ.get('EMAIL_SENDER'))
 EMAIL_PASSWORD = clean_secret(os.environ.get('EMAIL_PASSWORD'))
 EMAIL_TARGET = clean_secret(os.environ.get('EMAIL_TARGET'))
-PO_USER = clean_secret(os.environ.get('PUSHOVER_USER_KEY'))
-PO_TOKEN = clean_secret(os.environ.get('PUSHOVER_API_TOKEN'))
 
 # Határérték: 0.1 EUR/kWh (100 EUR/MWh)
 PRICE_LIMIT = 100.0 
@@ -37,33 +34,19 @@ def format_intervals(cheap_data):
     return "\n".join(intervals)
 
 def send_alert(subject, body):
-    errors = []
-    if PO_USER and PO_TOKEN:
-        try:
-            response = requests.post("https://api.pushover.net/1/messages.json", data={
-                "token": PO_TOKEN, "user": PO_USER, "title": subject, "message": body, "priority": 1
-            }, timeout=15)
-            response.raise_for_status()
-        except requests.RequestException as e:
-            errors.append(f"Pushover küldési hiba: {e}")
-    else:
-        errors.append("Pushover nincs konfigurálva")
-    if EMAIL_SENDER and EMAIL_PASSWORD and EMAIL_TARGET:
-        try:
-            msg = EmailMessage()
-            msg.set_content(body)
-            msg['Subject'] = subject
-            msg['From'] = EMAIL_SENDER
-            msg['To'] = EMAIL_TARGET
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
-                server.login(EMAIL_SENDER, EMAIL_PASSWORD)
-                server.send_message(msg)
-        except (smtplib.SMTPException, OSError) as e:
-            errors.append(f"E-mail küldési hiba: {e}")
-    else:
-        errors.append("E-mail nincs konfigurálva")
-    if errors:
-        raise RuntimeError("; ".join(errors))
+    if not (EMAIL_SENDER and EMAIL_PASSWORD and EMAIL_TARGET):
+        raise RuntimeError("E-mail nincs konfigurálva")
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg['Subject'] = subject
+    msg['From'] = EMAIL_SENDER
+    msg['To'] = EMAIL_TARGET
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465, timeout=15) as server:
+            server.login(EMAIL_SENDER, EMAIL_PASSWORD)
+            server.send_message(msg)
+    except (smtplib.SMTPException, OSError) as e:
+        raise RuntimeError(f"E-mail küldési hiba: {e}") from e
 
 def check_prices():
     print(f"--- INDÍTÁS: HMKE TERMELÉSI ABLAK MONITORING (08-18h) ---")

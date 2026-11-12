@@ -1,4 +1,4 @@
-"""Valós idejű figyelő: negatív tőzsdei ár + P1 visszatáplálás -> riasztás.
+"""Figyelő: küszöb alatti másnapi piaci ár + P1 visszatáplálás -> riasztás.
 
 A P1 mérő (GreenHess ADA) csak a helyi hálózaton érhető el, ezért ezt a
 szkriptet otthoni gépen/Raspberry Pi-n kell futtatni (nem GitHub Actionsben).
@@ -17,8 +17,8 @@ EXPORT_PATH = os.environ.get('P1_EXPORT_PATH', 'active_power_export')
 IMPORT_PATH = os.environ.get('P1_IMPORT_PATH', 'active_power_import')
 # Ha a mérő kW-ban adja az értéket, állítsd 1000-re
 P1_SCALE = float(os.environ.get('P1_SCALE_TO_W', '1'))
-EXPORT_MIN_W = float(os.environ.get('EXPORT_MIN_W', '100'))
-MAX_PRICE_EUR_MWH = float(os.environ.get('MAX_PRICE_EUR_MWH', '500'))
+EXPORT_MIN_W = float(os.environ.get('EXPORT_MIN_W', '0'))
+MAX_PRICE_EUR_MWH = float(os.environ.get('MAX_PRICE_EUR_MWH', '200'))
 POLL_SECONDS = int(os.environ.get('POLL_SECONDS', '60'))
 COOLDOWN_SECONDS = int(os.environ.get('COOLDOWN_SECONDS', '3600'))
 API_KEY = clean_secret(os.environ.get('ENTSOE_KEY'))
@@ -63,7 +63,7 @@ def main(test_once=False):
             export_w, import_w = (0, 0) if test_once else read_p1()
             print(f"ár={price * 1000:.2f} €/MWh, export={export_w:.0f} W, import={import_w:.0f} W")
             price_matches = price * 1000 < MAX_PRICE_EUR_MWH
-            export_matches = test_once or export_w >= EXPORT_MIN_W
+            export_matches = test_once or export_w > EXPORT_MIN_W
             if price_matches and export_matches and (test_once or time.time() - last_alert > COOLDOWN_SECONDS):
                 send_alert(
                     "Figyelem! Visszatáplálás alacsony tőzsdei ár mellett",
@@ -73,6 +73,7 @@ def main(test_once=False):
                     f"Tőzsdei ár: {price * 1000:.2f} €/MWh\n"
                     f"Visszatáplálás: {export_w / 1000:.3f} kW")
                 last_alert = time.time()
+                print("E-mail elküldve.")
             elif test_once:
                 print(f"A teszt nem küldött riasztást: az ár nem kisebb mint {MAX_PRICE_EUR_MWH:.2f} €/MWh.")
         except Exception as e:
