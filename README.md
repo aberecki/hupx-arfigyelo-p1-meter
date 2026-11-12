@@ -13,4 +13,12 @@ export P1_METER_URL=http://adaone.local/json
 python p1_monitor.py
 ```
 
+Az árküszöb alapértelmezésben `500 €/MWh`; a normál exportküszöb `100 W`.
+Egyszeri tesztküldéshez a program a mérő helyett `0 kW` exportot használ, és
+csak akkor küld értesítést, ha az aktuális lekért ár 500 €/MWh alatt van:
+
+```bash
+python p1_monitor.py --test-once
+```
+
 Jelszavakat/tokeneket ne commitolj; használj környezeti változókat vagy GitHub Secrets-et.

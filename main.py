@@ -37,13 +37,18 @@ def format_intervals(cheap_data):
     return "\n".join(intervals)
 
 def send_alert(subject, body):
+    errors = []
     if PO_USER and PO_TOKEN:
         try:
-            requests.post("https://api.pushover.net/1/messages.json", data={
+            response = requests.post("https://api.pushover.net/1/messages.json", data={
                 "token": PO_TOKEN, "user": PO_USER, "title": subject, "message": body, "priority": 1
-            })
-        except: print("Pushover hiba")
-    if EMAIL_SENDER and EMAIL_PASSWORD:
+            }, timeout=15)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            errors.append(f"Pushover küldési hiba: {e}")
+    else:
+        errors.append("Pushover nincs konfigurálva")
+    if EMAIL_SENDER and EMAIL_PASSWORD and EMAIL_TARGET:
         try:
             msg = EmailMessage()
             msg.set_content(body)
@@ -53,7 +58,12 @@ def send_alert(subject, body):
             with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
                 server.login(EMAIL_SENDER, EMAIL_PASSWORD)
                 server.send_message(msg)
-        except: print("E-mail hiba")
+        except (smtplib.SMTPException, OSError) as e:
+            errors.append(f"E-mail küldési hiba: {e}")
+    else:
+        errors.append("E-mail nincs konfigurálva")
+    if errors:
+        raise RuntimeError("; ".join(errors))
 
 def check_prices():
     print(f"--- INDÍTÁS: HMKE TERMELÉSI ABLAK MONITORING (08-18h) ---")
