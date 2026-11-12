@@ -18,6 +18,12 @@ export P1_METER_URL=http://adaone.local/json
 python p1_monitor.py
 ```
 
+Az ADA One alapértelmezett JSON-mezői az `instantaneous_power_export` és
+`instantaneous_power_import`, kW-ban; a program ezeket W-ra váltja.
+Más JSON-szerkezet vagy mértékegység esetén a mezőútvonalak és a
+`P1_SCALE_TO_W` beállíthatók. A mérő JSON-válasza jelszót és tokent is
+tartalmazhat, ezért a teljes választ ne oszd meg.
+
 Alapértelmezésben a riasztás feltétele a `200 €/MWh` alatti ár és a
 `0 W` feletti visszatáplálás. A küszöbök környezeti változóval módosíthatók.
 Az értesítésekhez Gmail-feladó, alkalmazásjelszó és címzett szükséges;

@@ -13,11 +13,11 @@ from entsoe import EntsoePandasClient
 from main import send_alert, clean_secret
 
 P1_URL = clean_secret(os.environ.get('P1_METER_URL')) or 'http://adaone.local/json'
-# Pontozott JSON-útvonal a visszatáplálás (W) és vételezés (W) mezőjéhez
-EXPORT_PATH = os.environ.get('P1_EXPORT_PATH', 'active_power_export')
-IMPORT_PATH = os.environ.get('P1_IMPORT_PATH', 'active_power_import')
-# Ha a mérő kW-ban adja az értéket, állítsd 1000-re
-P1_SCALE = float(os.environ.get('P1_SCALE_TO_W', '1'))
+# Pontozott JSON-útvonal a visszatáplálás és vételezés mezőjéhez
+EXPORT_PATH = os.environ.get('P1_EXPORT_PATH', 'instantaneous_power_export')
+IMPORT_PATH = os.environ.get('P1_IMPORT_PATH', 'instantaneous_power_import')
+# Az ADA One kW-ban adja az értékeket, amelyeket W-ra váltunk.
+P1_SCALE = float(os.environ.get('P1_SCALE_TO_W', '1000'))
 EXPORT_MIN_W = float(os.environ.get('EXPORT_MIN_W', '0'))
 MAX_PRICE_EUR_MWH = float(os.environ.get('MAX_PRICE_EUR_MWH', '200'))
 POLL_SECONDS = int(os.environ.get('POLL_SECONDS', '60'))
@@ -35,8 +35,13 @@ def read_p1():
     r = requests.get(P1_URL, timeout=10)
     r.raise_for_status()
     data = r.json()
-    export_w = float(dig(data, EXPORT_PATH)) * P1_SCALE
-    import_w = float(dig(data, IMPORT_PATH)) * P1_SCALE
+    try:
+        export_w = float(dig(data, EXPORT_PATH)) * P1_SCALE
+        import_w = float(dig(data, IMPORT_PATH)) * P1_SCALE
+    except (KeyError, IndexError, TypeError, ValueError):
+        raise ValueError("A P1 válaszból nem olvasható ki az import- és exportteljesítmény.") from None
+    if not all(math.isfinite(value) and value >= 0 for value in (export_w, import_w)):
+        raise ValueError("A P1 import- és exportteljesítményének érvényes, nem negatív számnak kell lennie.")
     return export_w, import_w
 
 

@@ -7,6 +7,37 @@ import main
 import p1_monitor
 
 
+class MeterTests(unittest.TestCase):
+    def test_reads_ada_one_kw_and_converts_to_watts(self):
+        response = {
+            'instantaneous_power_import': '0.183',
+            'instantaneous_power_export': '1.234',
+        }
+        with patch.object(p1_monitor, 'IMPORT_PATH', 'instantaneous_power_import'), \
+             patch.object(p1_monitor, 'EXPORT_PATH', 'instantaneous_power_export'), \
+             patch.object(p1_monitor, 'P1_SCALE', 1000), \
+             patch.object(p1_monitor.requests, 'get') as get:
+            get.return_value.json.return_value = response
+            self.assertEqual(p1_monitor.read_p1(), (1234.0, 183.0))
+
+    def test_missing_fields_do_not_log_the_response(self):
+        with patch.object(p1_monitor.requests, 'get') as get:
+            get.return_value.json.return_value = {'error': 'private detail'}
+            with self.assertRaisesRegex(ValueError, 'P1 válaszból nem olvasható'):
+                p1_monitor.read_p1()
+
+    def test_rejects_nonfinite_power(self):
+        with patch.object(p1_monitor, 'IMPORT_PATH', 'instantaneous_power_import'), \
+             patch.object(p1_monitor, 'EXPORT_PATH', 'instantaneous_power_export'), \
+             patch.object(p1_monitor.requests, 'get') as get:
+            get.return_value.json.return_value = {
+                'instantaneous_power_import': '0',
+                'instantaneous_power_export': 'nan',
+            }
+            with self.assertRaisesRegex(ValueError, 'érvényes, nem negatív'):
+                p1_monitor.read_p1()
+
+
 class CurrentPriceTests(unittest.TestCase):
     def setUp(self):
         p1_monitor._cache.update(slot=None, prices=None)
