@@ -3,6 +3,11 @@
 - `main.py` + GitHub Actions: másnapi alacsony ár riasztás, `prices.json` frissítés (változatlan).
 - `p1_monitor.py`: e-mail riasztás, ha az aktuális másnapi piaci ár a beállított küszöb alatt van **és** a P1 mérő visszatáplálást mér.
 
+A figyelő az ENTSO-E magyar zónára közzétett day-ahead árát használja: mindig
+a mai nap, magyar idő szerinti aktuális negyedórájához tartozó árat keresi.
+Ez nem valós idejű (intraday) tőzsdei ár. A lekérdezést minden negyedórában
+frissíti; hiányzó ár esetén hibát jelez, nem használ korábbi negyedórás árat.
+
 A P1 mérő helyi hálózaton van, ezért a `p1_monitor.py`-t otthoni gépen futtasd:
 
 ```bash

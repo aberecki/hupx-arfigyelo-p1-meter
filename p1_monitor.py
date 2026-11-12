@@ -6,6 +6,7 @@ szkriptet otthoni gépen/Raspberry Pi-n kell futtatni (nem GitHub Actionsben).
 import os
 import time
 import argparse
+import math
 import requests
 import pandas as pd
 from entsoe import EntsoePandasClient
@@ -39,28 +40,42 @@ def read_p1():
     return export_w, import_w
 
 
-_cache = {'day': None, 'prices': None}
+_cache = {'slot': None, 'prices': None}
 
 
-def current_price_eur_kwh():
-    """Az aktuális negyedórás HU day-ahead ár (EUR/kWh), napi cache-sel."""
-    now = pd.Timestamp.now(tz='Europe/Budapest')
-    day = now.normalize()
-    if _cache['day'] != day:
-        client = EntsoePandasClient(api_key=API_KEY)
-        _cache['prices'] = client.query_day_ahead_prices(
-            'HU', start=day, end=day + pd.Timedelta(days=1))
-        _cache['day'] = day
-    prices = _cache['prices']
-    return prices[prices.index <= now].iloc[-1] / 1000
+def current_price_eur_kwh(now=None):
+    """A magyar idő szerinti aktuális negyedóra HU day-ahead ára."""
+    def clock():
+        return now if now is not None else pd.Timestamp.now(tz='Europe/Budapest')
+
+    while True:
+        current = clock().tz_convert('Europe/Budapest')
+        day = current.normalize()
+        slot = current.tz_convert('UTC').floor('15min').tz_convert('Europe/Budapest')
+        if _cache['slot'] != slot:
+            client = EntsoePandasClient(api_key=API_KEY)
+            prices = client.query_day_ahead_prices(
+                'HU', start=day, end=day + pd.DateOffset(days=1))
+            if clock().tz_convert('UTC').floor('15min') != slot.tz_convert('UTC'):
+                continue
+            _cache.update(slot=slot, prices=prices)
+        prices = _cache['prices']
+        if not isinstance(prices.index, pd.DatetimeIndex) or prices.index.tz is None:
+            _cache.update(slot=None, prices=None)
+            raise ValueError("Az ENTSO-E árakhoz időzónás időbélyegek szükségesek.")
+        values = prices[prices.index == slot]
+        if len(values) != 1 or not math.isfinite(values.iloc[0]):
+            _cache.update(slot=None, prices=None)
+            raise ValueError(f"Nincs egyértelmű ár az aktuális negyedórára: {slot.isoformat()}")
+        return values.iloc[0] / 1000
 
 
 def main(test_once=False):
     last_alert = 0
     while True:
         try:
-            price = current_price_eur_kwh()
             export_w, import_w = (0, 0) if test_once else read_p1()
+            price = current_price_eur_kwh()
             print(f"ár={price * 1000:.2f} €/MWh, export={export_w:.0f} W, import={import_w:.0f} W")
             price_matches = price * 1000 < MAX_PRICE_EUR_MWH
             export_matches = test_once or export_w > EXPORT_MIN_W
