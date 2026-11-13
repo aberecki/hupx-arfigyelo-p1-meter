@@ -24,12 +24,21 @@ Más JSON-szerkezet vagy mértékegység esetén a mezőútvonalak és a
 `P1_SCALE_TO_W` beállíthatók. A mérő JSON-válasza jelszót és tokent is
 tartalmazhat, ezért a teljes választ ne oszd meg.
 
+Indítás után nyisd meg a Macen a http://127.0.0.1:8765 címet. Az oldalon
+megadhatod az ár felső határát (€/MWh) és a visszatáplálás alsó határát (W);
+mindkét feltételnek teljesülnie kell, az egyenlő érték nem riaszt. A mentés
+a következő mérésnél érvényes, újraindítás után is megmarad. Az oldal csak a
+figyelő futása alatt érhető el, és nem indítja el önmagától a programot.
+
 Alapértelmezésben a riasztás feltétele a `200 €/MWh` alatti ár és a
-`0 W` feletti visszatáplálás. A küszöbök környezeti változóval módosíthatók.
+`0 W` feletti visszatáplálás. Amíg nincs mentett beállítás, az
+`MAX_PRICE_EUR_MWH` és az `EXPORT_MIN_W` környezeti változóval is megadhatók.
+A felületen mentett beállítások elsőbbséget élveznek, és a
+`~/.config/hupx-arfigyelo-p1-meter/settings.json` fájlban tárolódnak.
 Az értesítésekhez Gmail-feladó, alkalmazásjelszó és címzett szükséges;
 Pushover-beállítás nem szükséges.
 Egyszeri tesztküldéshez a program a mérő helyett `0 kW` exportot használ, és
-csak akkor küld értesítést, ha az aktuális lekért ár 200 €/MWh alatt van:
+csak akkor küld értesítést, ha az aktuális lekért ár a beállított árküszöb alatt van:
 
 ```bash
 python p1_monitor.py --test-once

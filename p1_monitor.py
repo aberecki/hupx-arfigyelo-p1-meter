@@ -11,6 +11,7 @@ import requests
 import pandas as pd
 from entsoe import EntsoePandasClient
 from main import send_alert, clean_secret
+from settings_ui import load_settings, start_server
 
 P1_URL = clean_secret(os.environ.get('P1_METER_URL')) or 'http://adaone.local/json'
 # Pontozott JSON-útvonal a visszatáplálás és vételezés mezőjéhez
@@ -81,9 +82,10 @@ def main(test_once=False):
         try:
             export_w, import_w = (0, 0) if test_once else read_p1()
             price = current_price_eur_kwh()
+            settings = load_settings({'price_eur_mwh': MAX_PRICE_EUR_MWH, 'export_w': EXPORT_MIN_W})
             print(f"ár={price * 1000:.2f} €/MWh, export={export_w:.0f} W, import={import_w:.0f} W")
-            price_matches = price * 1000 < MAX_PRICE_EUR_MWH
-            export_matches = test_once or export_w > EXPORT_MIN_W
+            price_matches = price * 1000 < settings['price_eur_mwh']
+            export_matches = test_once or export_w > settings['export_w']
             if price_matches and export_matches and (test_once or time.time() - last_alert > COOLDOWN_SECONDS):
                 send_alert(
                     "Figyelem! Visszatáplálás alacsony tőzsdei ár mellett",
@@ -95,7 +97,7 @@ def main(test_once=False):
                 last_alert = time.time()
                 print("E-mail elküldve.")
             elif test_once:
-                print(f"A teszt nem küldött riasztást: az ár nem kisebb mint {MAX_PRICE_EUR_MWH:.2f} €/MWh.")
+                print(f"A teszt nem küldött riasztást: az ár nem kisebb mint {settings['price_eur_mwh']:.2f} €/MWh.")
         except Exception as e:
             print(f"Hiba: {e}")
             if test_once:
@@ -112,4 +114,16 @@ if __name__ == "__main__":
         action="store_true",
         help="Egyszeri teszt 0 kW exportértékkel; a mérő lekérdezése nélkül.",
     )
-    main(test_once=parser.parse_args().test_once)
+    args = parser.parse_args()
+    if args.test_once:
+        main(test_once=True)
+    else:
+        defaults = {'price_eur_mwh': MAX_PRICE_EUR_MWH, 'export_w': EXPORT_MIN_W}
+        load_settings(defaults)
+        server = start_server(defaults)
+        print(f"Beállítások: {server.origin}", flush=True)
+        try:
+            main()
+        finally:
+            server.shutdown()
+            server.server_close()
